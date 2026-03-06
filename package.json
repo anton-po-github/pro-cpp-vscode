@@ -2,8 +2,13 @@
   "name": "pro-cpp",
   "displayName": "PRO C++",
   "description": "The ultimate Developer Experience (DX) for C++ on Windows.",
+  "icon": "icon.png",
   "version": "1.0.0",
   "publisher": "anton-po",
+  "repository": {
+    "type": "git",
+     "url": "git+https://github.com/anton-po-github/pro-cpp-vscode.git"
+  },
   "engines": {
     "vscode": "^1.85.0"
   },
