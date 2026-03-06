@@ -1,6 +1,6 @@
 {
   "name": "pro-cpp",
-  "displayName": "PRO C++",
+  "displayName": "PRO C++ Hot-Reload (DLL & EXE)",
   "description": "The ultimate Developer Experience (DX) for C++ on Windows.",
   "icon": "icon.png",
   "version": "1.0.0",
