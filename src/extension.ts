@@ -1,24 +1,67 @@
 import * as vscode from 'vscode';
 
-// We keep a reference to our custom terminal to ensure we do not spawn duplicates
-let proTerminal: vscode.Terminal | undefined;
+// -----------------------------------------------------------------------------
+// TERMINAL MANAGER
+// Architected to handle Workspace Context and graceful error checking
+// -----------------------------------------------------------------------------
+export class TerminalManager {
+    private terminal: vscode.Terminal | undefined;
 
-// Helper function to robustly get or create our PRO C++ Terminal instance
-function getTerminal(): vscode.Terminal {
-    if (!proTerminal || proTerminal.exitStatus !== undefined) {
-        proTerminal = vscode.window.createTerminal({
-            name: "PRO C++ Engine"
-        });
+    // Retrieves the current workspace path or returns null if no folder is open
+    private getWorkspacePath(): string | null {
+        if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
+            return vscode.workspace.workspaceFolders[0].uri.fsPath;
+        }
+        return null;
     }
-    return proTerminal;
+
+    // Retrieves the existing terminal or creates a new one scoped to the workspace
+    public getTerminal(): vscode.Terminal | null {
+        const workspacePath = this.getWorkspacePath();
+
+        if (!workspacePath) {
+            vscode.window.showErrorMessage('❌ PRO C++: Please open a folder (workspace) first!');
+            return null;
+        }
+
+        if (!this.terminal || this.terminal.exitStatus !== undefined) {
+            this.terminal = vscode.window.createTerminal({
+                name: "PRO C++ Engine",
+                cwd: workspacePath // FORCE terminal to open in the project folder!
+            });
+        }
+        return this.terminal;
+    }
+
+    // Executes a given command in the integrated terminal
+    public executeCommand(command: string): void {
+        const term = this.getTerminal();
+        if (term) {
+            term.show();
+            term.sendText('clear');
+            term.sendText(command);
+        }
+    }
+
+    // Cleans up resources
+    public dispose(): void {
+        if (this.terminal) {
+            this.terminal.dispose();
+        }
+    }
 }
 
-// Extension activation entry point
+// Global instance of our manager
+const terminalManager = new TerminalManager();
+
+// -----------------------------------------------------------------------------
+// EXTENSION ACTIVATION
+// -----------------------------------------------------------------------------
 export function activate(context: vscode.ExtensionContext) {
     try {
         console.log('🚀 PRO C++ Extension is initializing...');
 
-        // Create a prominent Status Bar Item for quick access
+        // 1. Setup Status Bar UI
         const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
         statusBarItem.text = "$(zap) PRO C++ Watcher";
         statusBarItem.tooltip = "Click to start the C++ Hot-Reload Watcher";
@@ -27,15 +70,12 @@ export function activate(context: vscode.ExtensionContext) {
 
         context.subscriptions.push(statusBarItem);
 
-        // Register the standard watch command (EXE target)
+        // 2. Register 'Watch' Command (EXE)
         let watchCommand = vscode.commands.registerCommand('procpp.watch', () => {
-            const terminal = getTerminal();
-            terminal.show(); 
-            terminal.sendText('clear');
-            terminal.sendText('procpp watch');
+            terminalManager.executeCommand('procpp watch');
         });
 
-        // Register the DLL build command (.NET 10+ target integration)
+        // 3. Register 'Build DLL' Command (.NET 10+)
         let buildDllCommand = vscode.commands.registerCommand('procpp.buildDll', async () => {
             const dllName = await vscode.window.showInputBox({
                 prompt: "Enter the desired name for your DLL (e.g., CoreEngine)",
@@ -43,33 +83,26 @@ export function activate(context: vscode.ExtensionContext) {
                 ignoreFocusOut: true
             });
 
-            // Handle user cancellation gracefully
+            // Prevent execution if user cancels the input box
             if (dllName === undefined) {
                 return; 
             }
 
-            const terminal = getTerminal();
-            terminal.show();
-            terminal.sendText('clear');
-            
-            // Format the command based on user input for dynamic DLL naming
             const command = dllName.trim() === '' ? 'procpp watch dll' : `procpp watch dll ${dllName}`;
-            terminal.sendText(command);
+            terminalManager.executeCommand(command);
         });
 
-        // Register all commands to the extension context for proper cleanup
         context.subscriptions.push(watchCommand, buildDllCommand);
         console.log('✅ PRO C++ Extension activated successfully!');
         
     } catch (error) {
-        // Log critical errors directly to the VS Code extension host console
         console.error('❌ FATAL ERROR during PRO C++ Extension activation:', error);
     }
 }
 
-// Extension deactivation cleanup routine
+// -----------------------------------------------------------------------------
+// EXTENSION DEACTIVATION
+// -----------------------------------------------------------------------------
 export function deactivate() {
-    if (proTerminal) {
-        proTerminal.dispose();
-    }
+    terminalManager.dispose();
 }
